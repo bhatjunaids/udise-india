@@ -111,6 +111,16 @@ infra_chk = d.get("India",{}).get("2018-19",{}).get("inf",{}).get("li")
 if not infra_chk or abs(infra_chk[0]-80.6) > 0.2:
     ok = False; problems.append(f"SPOT-CHECK FAIL 18-19 library %: {infra_chk} want ~80.6")
 
+# The functional-% we derive from counts must equal the same report's own
+# published percentages (2023-24 Tables 8.6 / 8.9 / 8.8) — an independent check
+# on the whole infra column map, not just on parsing.
+for k, tbl, want in (("el","8.6",89.7), ("bt","8.9",91.4), ("gt","8.8",93.6)):
+    got = d.get("India",{}).get("2023-24",{}).get("inf",{}).get(k)
+    if not got or len(got) < 2 or abs(got[1]-want) > 0.1:
+        ok = False
+        problems.append(f"SPOT-CHECK FAIL 23-24 functional {k}: got {got}, "
+                        f"want {want} (report Table {tbl})")
+
 states_now = sorted(s for s in d if s != "India" and all(yy not in d[s] or yy in ("2018-19","2019-20") or d[s].get(yy) for yy in []))
 payload = {
     "yearsA": YEARS_A, "yearsB": YEARS_B,
