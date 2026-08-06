@@ -10,9 +10,10 @@ permissions:
   pages: write
   id-token: write
 
+# Never cancel a deployment that is already publishing; queue behind it instead.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
