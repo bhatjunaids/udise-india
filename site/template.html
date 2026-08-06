@@ -1,0 +1,125 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UDISE+ India Dashboard</title>
+<style>
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10); --chip:#f0efec;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --good:#006300; --bad:#d03b3b; --hl:#f3f0e4;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:26px 20px 60px}
+header.top h1{font-size:23px;font-weight:700;margin:0;letter-spacing:-.01em}
+.sub{color:var(--ink2);font-size:13px;margin:2px 0 14px}
+.eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--axis);margin:14px 0 18px}
+.tabs button{appearance:none;border:none;background:none;color:var(--ink2);font:inherit;font-weight:600;
+  padding:8px 13px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.tabs button:focus-visible,select:focus-visible,.seg button:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+.controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:end;margin-bottom:14px}
+.ctl{display:flex;flex-direction:column;gap:4px}
+select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--axis);border-radius:6px;padding:6px 8px;min-width:120px}
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--chip);border-radius:7px;padding:2px}
+.seg button{appearance:none;border:none;background:none;color:var(--ink2);font:inherit;font-size:13px;
+  padding:5px 10px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--border)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px 10px}
+.tile .v{font-size:23px;font-weight:700;margin:2px 0 0}
+.tile .d{font-size:12px;font-weight:600}
+.tile .d .vs{color:var(--muted);font-weight:400}
+.up{color:var(--good)} .down{color:var(--bad)} .flat{color:var(--ink2)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 14px 8px;position:relative}
+.card h3{margin:0 0 2px;font-size:13.5px;font-weight:700}
+.card .note{color:var(--muted);font-size:11.5px;margin:0 0 6px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:4px 0 2px;font-size:11.5px;color:var(--ink2)}
+.legend .it{display:inline-flex;align-items:center;gap:5px}
+.sw{width:10px;height:10px;border-radius:3px;flex:none;display:inline-block}
+.chart-wrap{position:relative}
+/* Charts use a 560-unit viewBox; without a cap they scale ~2x in a full-width
+   card and every label balloons with them. */
+.chart-wrap svg{display:block;width:100%;height:auto;max-width:840px;margin:0 auto}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--axis);border-radius:6px;
+  padding:6px 9px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);display:none;z-index:5;min-width:130px}
+.tip .ty{font-weight:700;margin-bottom:2px}
+.tip .tr{display:flex;justify-content:space-between;gap:12px}
+.tip .tr .n{display:inline-flex;align-items:center;gap:5px;color:var(--ink2)}
+.tip .tr .val{font-variant-numeric:tabular-nums;font-weight:600}
+.tablecard{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.tscroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 11px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+th{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;
+  border-bottom:1px solid var(--axis);position:sticky;top:0;background:var(--surface)}
+th:first-child,td:first-child{text-align:left}
+td{border-bottom:1px solid var(--grid)}
+tr:last-child td{border-bottom:none}
+tr.india td{font-weight:700;border-bottom:1px solid var(--axis)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--ink)}
+th .arr{font-size:9px}
+.statebox{background:var(--surface);border:1px solid var(--axis);border-radius:7px;max-height:150px;overflow-y:auto;
+  padding:6px 10px;columns:2;min-width:320px}
+.statebox label{display:flex;align-items:center;gap:6px;font-size:12.5px;padding:2px 0;cursor:pointer;break-inside:avoid;color:var(--ink2)}
+.statebox label.on{color:var(--ink);font-weight:600}
+.statebox input{accent-color:var(--s1)}
+.hint{font-size:11.5px;color:var(--muted);margin-top:4px}
+.era-note{background:var(--chip);border-left:3px solid var(--s2);border-radius:0 6px 6px 0;
+  padding:8px 12px;font-size:12.5px;color:var(--ink2);margin:0 0 14px}
+footer{margin-top:26px;color:var(--muted);font-size:12px;line-height:1.65;border-top:1px solid var(--grid);padding-top:14px}
+footer b{color:var(--ink2)}
+section[hidden]{display:none}
+.askbox{display:flex;gap:8px;margin:2px 0 8px}
+.askbox input{flex:1;font:inherit;font-size:14px;color:var(--ink);background:var(--surface);
+  border:1px solid var(--axis);border-radius:8px;padding:9px 12px;min-width:0}
+.askbox input::placeholder{color:var(--muted)}
+.askbox button{font:inherit;font-weight:600;background:var(--ink);color:var(--page);border:none;border-radius:8px;padding:9px 18px;cursor:pointer}
+.askchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.askchips button{font:inherit;font-size:12px;color:var(--ink2);background:var(--chip);border:none;border-radius:999px;padding:4px 11px;cursor:pointer}
+.askchips button:hover{color:var(--ink)}
+#ask-answer{margin:10px 0 6px}
+#ask-answer .card{padding-right:34px}
+#ask-answer p.lead{font-size:14.5px;margin:2px 0 10px}
+#ask-answer .close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1}
+#ask-answer .close:hover{color:var(--ink)}
+#ask-answer td.hl{background:var(--hl)}
+@media (max-width:640px){ .statebox{columns:1;min-width:0} .tile .v{font-size:19px} }
+</style>
+
+<div class="wrap">
+<header class="top">
+  <h1>UDISE+ India Dashboard</h1>
+  <p class="sub">All States/UTs + India, 2018-19 → 2025-26 · extracted from the official UDISE+ national reports, with table citations.
+  Outcome indicators are shown in two eras (pre-NEP / NEP) because UDISE+ changed levels and methodology in 2022-23 — the two are not comparable.</p>
+</header>
+
+<div class="askbox">
+  <input id="ask-input" type="search" autocomplete="off"
+    placeholder='Ask the data — "GER in Bihar 2023-24" · "compare girls toilets UP vs Kerala" · "top 5 states by PTR"'>
+  <button id="ask-go">Ask</button>
+</div>
+<div class="askchips" id="ask-chips"></div>
+<div id="ask-answer"></div>
+
+<div class="tabs" role="tablist" id="tabs"></div>
+
+<section id="tab-overview"></section>
+<section id="tab-compare" hidden></section>
+<section id="tab-infra" hidden></section>
+<section id="tab-equity" hidden></section>
+<section id="tab-outA" hidden></section>
+<section id="tab-outB" hidden></section>
+<section id="tab-table" hidden></section>
+
+<footer id="foot"></footer>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+/*__APP__*/
+</script>
