@@ -29,28 +29,28 @@ const METRICS = {
   e:   {label:"Enrolment", era:"all", kind:"count", mgmt:true, unit:"n", fam:"enrol",
         get:(st,y,o)=>{const a=cell(st,y).e; return a?a[o.m||0]:null;}},
   ptr: {label:"Pupil–teacher ratio", era:"both", kind:"outcome", unit:"ratio", fam:"ptr", lvl:e=>e==="A"?LA:LB,
-        get:(st,y,o)=>{const a=cell(st,y).ptr; return a?a[o.l==null?levelDefault(y):o.l]:null;}},
+        get:(st,y,o)=>pick1(cell(st,y).ptr, o)},
   ger: {label:"GER", era:"both", kind:"outcome", unit:"pct", gender:true, fam:"ger",
         lvl:e=>e==="A"?["Primary (I–V)","Upper Primary (VI–VIII)","Elementary (I–VIII)","Secondary (IX–X)","Higher Secondary (XI–XII)"]:LB,
-        get:(st,y,o)=>pick3(cell(st,y).ger, o, y, 5, 4)},
+        get:(st,y,o)=>pick3(cell(st,y).ger, o, 3)},
   ner: {label:"NER", era:"both", kind:"outcome", unit:"pct", gender:true, fam:"ner",
         lvl:e=>e==="A"?["Primary (I–V)","Upper Primary (VI–VIII)","Elementary (I–VIII)","Secondary (IX–X)","Higher Secondary (XI–XII)"]:LB,
-        get:(st,y,o)=>pick3(cell(st,y).ner, o, y, 5, 4)},
+        get:(st,y,o)=>pick3(cell(st,y).ner, o, 3)},
   gpi: {label:"Gender Parity Index (GER)", era:"both", kind:"equity", unit:"idx", fam:"gpi",
         lvl:e=>e==="A"?["Primary (I–V)","Upper Primary (VI–VIII)","Elementary (I–VIII)","Secondary (IX–X)","Higher Secondary (XI–XII)"]:LB,
-        get:(st,y,o)=>{const a=cell(st,y).gpi; return a?a[o.l==null?a.length-1:o.l]:null;}},
+        get:(st,y,o)=>pick1(cell(st,y).gpi, o)},
   dr:  {label:"Dropout rate", era:"both", kind:"outcome", unit:"pct", gender:true, fam:"dropout",
         lvl:e=>e==="A"?["Primary (I–V)","Upper Primary (VI–VIII)","Secondary (IX–X)"]
                       :["Preparatory (III–V)","Middle (VI–VIII)","Secondary (IX–XII)"],
-        get:(st,y,o)=>pick3(cell(st,y).dr, o, y, 2)},
+        get:(st,y,o)=>pick3(cell(st,y).dr, o, 2)},
   tr:  {label:"Transition rate", era:"both", kind:"outcome", unit:"pct", gender:true, fam:"transition",
         lvl:e=>e==="A"?["Primary→Upper Primary (V→VI)","Upper Primary→Secondary (VIII→IX)","Secondary→Hr Sec (X→XI)"]
                       :["Foundational→Preparatory","Preparatory→Middle","Middle→Secondary"],
-        get:(st,y,o)=>pick3(cell(st,y).tr, o, y, 2)},
+        get:(st,y,o)=>pick3(cell(st,y).tr, o, 2)},
   rr:  {label:"Retention rate", era:"both", kind:"outcome", unit:"pct", gender:true, fam:"retention",
         lvl:e=>e==="A"?["Primary (I–V)","Elementary (I–VIII)","Secondary (I–X)","Higher Secondary (I–XII)"]
                       :["Foundational","Preparatory","Middle","Secondary"],
-        get:(st,y,o)=>pick3(cell(st,y).rr, o, y, 3)},
+        get:(st,y,o)=>pick3(cell(st,y).rr, o, 3)},
   // infrastructure (% of schools, all managements)
   inel:{label:"Functional electricity %", era:"all", kind:"infra", unit:"pct", fam:"in_elec",  get:(st,y)=>inf(st,y,'el',1)},
   inwa:{label:"Drinking water %",         era:"all", kind:"infra", unit:"pct", fam:"in_water", get:(st,y)=>inf(st,y,'wa',1)},
@@ -66,24 +66,52 @@ const METRICS = {
   obc: {label:"OBC share of enrolment", era:"all", kind:"equity", unit:"pct", fam:"obc_pct",
         get:(st,y)=>{const c=cell(st,y); return c.obcT!=null?c.obcT:soc(st,y,3);}},
   mus: {label:"Muslim share of enrolment", era:"B", kind:"equity", unit:"pct", fam:"social", get:(st,y)=>soc(st,y,4)},
-  mino:{label:"All-minority share %", era:"all", kind:"equity", unit:"pct", fam:"minority_pct",
+  /* Era A publishes an overall "Primary to Higher Secondary" minority column;
+     the NEP tables give it per stage only, with no overall, so this indicator
+     is pre-NEP-only rather than silently empty for recent years. Use the
+     Muslim share from Table 2.4 for NEP-era minority enrolment. */
+  mino:{label:"All-minority share % (pre-NEP only)", era:"A", kind:"equity", unit:"pct", fam:"minority_pct",
         get:(st,y)=>{const c=cell(st,y); return c.minT!=null?c.minT:null;}},
   cwsn:{label:"CWSN enrolment", era:"all", kind:"equity", unit:"n", fam:"cwsn",
         get:(st,y)=>{const c=cell(st,y); return c.cwsnT!=null?c.cwsnT:null;}},
 };
 function eraOf(y){ return YA.includes(y) ? "A" : "B"; }
-function levelDefault(y){ return 3; } // Secondary is index 3 in both eras' PTR
-/* Reads a [level x (Boys,Girls,Total)] block. Returns null — never a clamped
-   neighbouring level — when the requested level is absent for that year, so a
-   short year (2018-19 retention publishes 3 levels, not 4) shows "–" rather
-   than another level's number under the wrong label. */
-function pick3(arr, o, y, defIdx){
+/* Level index 3 is Secondary in every era and indicator, so it is the default
+   wherever the caller doesn't name a level. */
+const DEF_LVL = 3;
+/* Reads a [level x (Boys,Girls,Total)] block.
+
+   An *explicitly requested* level that the year doesn't publish returns null —
+   never a clamped neighbour — so 2018-19 retention (three levels, not four)
+   shows "–" instead of the Secondary figure labelled "Higher Secondary".
+   When no level is requested, fall back to the last level that year does have,
+   so the default view isn't empty. */
+function pick3(arr, o, defIdx){
   if(!arr) return null;
   const n = arr.length/3|0;
-  let l = o.l==null ? (defIdx==null?3:defIdx) : o.l;
-  if(l>=n || l<0) return null;
+  let l = o.l;
+  if(l==null){ l = defIdx==null?DEF_LVL:defIdx; if(l>=n) l=n-1; }
+  else if(l>=n || l<0) return null;
   const g = o.g==null?2:o.g;
   return arr[l*3+g]!=null ? arr[l*3+g] : null;
+}
+/* Same contract for one-value-per-level blocks (PTR, GPI). */
+function pick1(arr, o){
+  if(!arr) return null;
+  let l = o.l;
+  if(l==null){ l = Math.min(DEF_LVL, arr.length-1); }
+  else if(l>=arr.length || l<0) return null;
+  return arr[l]!=null ? arr[l] : null;
+}
+/* How many levels a given indicator actually publishes in a given year.
+   India's row is the reference — every state shares the year's table shape. */
+function nLevels(key, y){
+  const m=METRICS[key];
+  if(!m || !m.lvl) return 0;
+  const KEYS={ger:'ger',ner:'ner',dr:'dr',tr:'tr',rr:'rr',ptr:'ptr',gpi:'gpi'};
+  const a=cell('India',y)[KEYS[key]];
+  if(!a) return m.lvl(eraOf(y)).length;
+  return (key==='ptr'||key==='gpi') ? a.length : (a.length/3|0);
 }
 function inf(st,y,k,fi){ const o=(cell(st,y).inf||{})[k]; return o?o[fi]!=null?o[fi]:o[0]:null; }
 function soc(st,y,i){ const a=cell(st,y).soc; return a?a[i]:null; }
@@ -590,21 +618,26 @@ buildOutcomes('tab-outB','B');
       p.sup={dir:asc?'asc':'desc', n:n?Math.min(+n[1],36):5}; }
     return p;
   }
-  function lvlIdx(p,y){ if(p.l==null) return null;
-    const e=eraOf(y), m=METRICS[p.metric];
-    let i=p.l[e]; if(m.lvl){ const n=m.lvl(e).length; if(i>=n) i=n-1;
-      if((p.metric==='dr'||p.metric==='tr')&&e==='A'&&i>2) i=2;
-      if((p.metric==='dr'||p.metric==='tr')&&i>2) i=2; }
-    return i; }
+  /* Resolve a single level index used by BOTH the label and the value, clamped
+     to what the year actually publishes — so the answer never reads e.g.
+     "Higher Secondary" above a Secondary number. */
+  function lvlIdx(p,y){
+    const m=METRICS[p.metric];
+    if(!m.lvl) return null;
+    const n=nLevels(p.metric,y);
+    let i = p.l==null ? DEF_LVL : p.l[eraOf(y)];
+    return Math.max(0, Math.min(i, n-1));
+  }
   function describe(p,y){
     const m=METRICS[p.metric]; let d=m.label;
     if(m.mgmt&&p.m) d+=' — '+MGMT[p.m];
-    if(m.lvl){ const e=eraOf(y); const i=lvlIdx(p,y); d+=' — '+m.lvl(e)[i==null?m.lvl(e).length-1:i]; }
+    if(m.lvl){ const labels=m.lvl(eraOf(y)); const i=lvlIdx(p,y);
+      d+=' — '+labels[Math.min(i,labels.length-1)]; }
     if(m.gender&&p.g!=null) d+=' · '+GEN[p.g];
     return d;
   }
-  function val(p,st,y){ const i=lvlIdx(p,y);
-    return METRICS[p.metric].get(st,y,{m:p.m||0,l:i,g:p.g==null?2:p.g}); }
+  function val(p,st,y){
+    return METRICS[p.metric].get(st,y,{m:p.m||0,l:lvlIdx(p,y),g:p.g==null?2:p.g}); }
   function card(html){ ans.innerHTML=`<div class="card">${html}<button class="close" aria-label="close">✕</button></div>`;
     ans.querySelector('.close').addEventListener('click',()=>ans.innerHTML=''); }
   function yearTable(p,states,ys){
