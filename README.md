@@ -74,6 +74,16 @@ python3 build_data.py     # runs spot-checks against hand-read PDF values
 python3 build_site.py
 ```
 
+## Publishing
+
+Pushing to `main` has not reliably triggered the Pages workflow on this repo, so
+after pushing, start the deploy explicitly and confirm what is actually served:
+
+```bash
+gh workflow run pages.yml --ref main
+curl -s https://bhatjunaids.github.io/udise-india/ | md5   # compare with: md5 -q index.html
+```
+
 `build_data.py` fails loudly if any table's column count is unexpected, and verifies
 eight known values (e.g. India 2018-19 schools = 1,551,000; India 2023-24 GER Secondary
 = 66.5) read by hand from the PDFs.
